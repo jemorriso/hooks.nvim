@@ -215,3 +215,5 @@ function M.menu()
     end,
   })
 end
+
+return M
