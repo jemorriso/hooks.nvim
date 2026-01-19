@@ -154,6 +154,9 @@ function M.menu()
 
   vim.api.nvim_buf_set_lines(menu_buf, 0, -1, false, formatted_lines)
 
+  -- Allow user to :q or <ESC> without prompting to save if there are no changes to the file
+  vim.api.nvim_buf_set_option_value("modified", "false", { buf = menu_buf })
+
   vim.keymap.set("n", "<ESC>", "<CMD>q<CR>", { buffer = menu_buf, silent = true })
 
   -- Menu's floating window settings
