@@ -126,6 +126,10 @@ Note: These are my keybinds, and you are encouraged to set your own.
 ```lua
 {
   'xavierchen0/ezpoon',
+  config = function()
+    local ez = require("ezpoon")
+    -- Add your basic setup here (see below for full config)
+  end
 }
 ```
 
