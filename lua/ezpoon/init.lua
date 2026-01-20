@@ -1,10 +1,10 @@
 local M = {}
 M.slots = {}
 
-local data_dir = vim.fn.stdpath("data") .. "/ezpoon"
+local data_dir = vim.fn.stdpath("data") .. "/hooks"
 vim.fn.mkdir(data_dir, "p")
 
-local ns_id = vim.api.nvim_create_namespace("EZpoon")
+local ns_id = vim.api.nvim_create_namespace("Hooks")
 
 ---Find path where arglst is saved depending on context.
 ---Context depends on which git repo user is in, otherwise fallback to global
@@ -115,7 +115,7 @@ end
 -- Action: Add
 -- ============================================
 
----Add current file to EZpoon
+---Add current file to Hooks
 ---@param key string
 function M.add(key)
   M.slots = _load_state()
@@ -129,7 +129,7 @@ function M.add(key)
 
   _save_state()
 
-  vim.notify("EZpoon: " .. current_file .. " added to " .. "[" .. key .. "]", vim.log.levels.INFO)
+  vim.notify("Hooks: " .. current_file .. " added to " .. "[" .. key .. "]", vim.log.levels.INFO)
 end
 
 -- ============================================
@@ -149,7 +149,7 @@ end
 -- Action: menu
 -- ============================================
 
----Display EZpoon's menu for editing
+---Display Hooks's menu for editing
 function M.menu()
   M.slots = _load_state()
   local sorted_keys = _sorted_keys(M.slots)
@@ -159,7 +159,7 @@ function M.menu()
   local menu_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("buftype", "acwrite", { buf = menu_buf })
   vim.api.nvim_set_option_value("bufhidden", "delete", { buf = menu_buf })
-  vim.api.nvim_buf_set_name(menu_buf, "EZPoon-Menu")
+  vim.api.nvim_buf_set_name(menu_buf, "Hooks-Menu")
 
   vim.api.nvim_buf_set_lines(menu_buf, 0, -1, false, formatted_lines)
 
@@ -182,7 +182,7 @@ function M.menu()
     col = col,
     style = "minimal",
     border = "rounded",
-    title = "EZpoon Menu",
+    title = "Hooks Menu",
     title_pos = "center",
     footer = ":w to save | :q or ESC to quit",
     footer_pos = "center",
@@ -191,7 +191,7 @@ function M.menu()
   -- Save logic
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = menu_buf,
-    desc = "Save EZpoon state on write",
+    desc = "Save Hooks state on write",
     callback = function(_)
       vim.api.nvim_buf_clear_namespace(menu_buf, ns_id, 0, -1)
 
@@ -213,7 +213,7 @@ function M.menu()
         end
 
         vim.api.nvim_set_option_value("modified", false, { buf = menu_buf })
-        vim.notify("EZpoon: State saved!", vim.log.levels.INFO)
+        vim.notify("Hooks: State saved!", vim.log.levels.INFO)
         vim.api.nvim_win_close(menu_win, true)
       else
         for _, line_num in ipairs(lines_with_errors) do
@@ -223,7 +223,7 @@ function M.menu()
           })
         end
         vim.notify(
-          "EZpoon: Please ensure syntax is correct ([<key>] = <valid fp>), and that the file exists!",
+          "Hooks: Please ensure syntax is correct ([<key>] = <valid fp>), and that the file exists!",
           vim.log.levels.ERROR
         )
       end
