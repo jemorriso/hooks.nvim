@@ -194,6 +194,93 @@ function M.add_at_end()
   vim.notify("Hooks: " .. current_file .. " added at end [" .. new_key .. "]", vim.log.levels.INFO)
 end
 
+---Renumber numeric keys to be contiguous after removal
+---@param removed_key integer
+local function _renumber_after_removal(removed_key)
+  local new_slots = {}
+  
+  -- First, copy all non-numeric keys as-is
+  for k, v in pairs(M.slots) do
+    if not tonumber(k) then
+      new_slots[k] = v
+    end
+  end
+  
+  -- Then renumber numeric keys
+  local numeric_keys = {}
+  for k, _ in pairs(M.slots) do
+    local num = tonumber(k)
+    if num then
+      table.insert(numeric_keys, num)
+    end
+  end
+  table.sort(numeric_keys)
+  
+  local new_idx = 1
+  for _, old_num in ipairs(numeric_keys) do
+    new_slots[tostring(new_idx)] = M.slots[tostring(old_num)]
+    new_idx = new_idx + 1
+  end
+  
+  M.slots = new_slots
+end
+
+---Remove a hook by key and renumber to maintain contiguous indices
+---@param key string|integer
+function M.remove(key)
+  M.slots = _load_state()
+
+  if not M.slots[key] then
+    vim.notify("Hooks: No hook at [" .. key .. "]", vim.log.levels.WARN)
+    return
+  end
+
+  local filepath = M.slots[key]
+  local removed_num = tonumber(key)
+  M.slots[key] = nil
+  
+  -- Renumber if it was a numeric key
+  if removed_num then
+    _renumber_after_removal(removed_num)
+  end
+  
+  _save_state()
+
+  vim.notify("Hooks: Removed [" .. key .. "] " .. filepath, vim.log.levels.INFO)
+end
+
+---Remove current file from hooks and renumber
+function M.remove_current()
+  M.slots = _load_state()
+  local current_file = vim.fn.expand("%:p")
+
+  -- Find which key has current file
+  local found_key = nil
+  for key, filepath in pairs(M.slots) do
+    if filepath == current_file then
+      found_key = key
+      break
+    end
+  end
+
+  if not found_key then
+    vim.notify("Hooks: Current file is not a hook", vim.log.levels.WARN)
+    return
+  end
+
+  local removed_num = tonumber(found_key)
+  M.slots[found_key] = nil
+  
+  -- Renumber if it was a numeric key
+  if removed_num then
+    _renumber_after_removal(removed_num)
+  end
+  
+  _save_state()
+
+  vim.notify("Hooks: Removed [" .. found_key .. "]", vim.log.levels.INFO)
+end
+
 -- ============================================
 -- Action: Jump
 -- ============================================
