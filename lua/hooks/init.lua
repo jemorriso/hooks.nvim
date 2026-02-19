@@ -145,6 +145,68 @@ function M.jump(key)
   vim.cmd.edit(filepath)
 end
 
+---Jump to the next slot in sorted order
+---If current file is not in slots, jumps to the first slot
+function M.next()
+  M.slots = _load_state()
+  local sorted_keys = _sorted_keys(M.slots)
+
+  if #sorted_keys == 0 then
+    vim.notify("Hooks: No slots defined", vim.log.levels.WARN)
+    return
+  end
+
+  local current_file = vim.fn.expand("%:p")
+  local current_index = nil
+
+  for i, key in ipairs(sorted_keys) do
+    if M.slots[key] == current_file then
+      current_index = i
+      break
+    end
+  end
+
+  local next_index
+  if current_index then
+    next_index = (current_index % #sorted_keys) + 1
+  else
+    next_index = 1
+  end
+
+  M.jump(sorted_keys[next_index])
+end
+
+---Jump to the previous slot in sorted order
+---If current file is not in slots, jumps to the first slot
+function M.prev()
+  M.slots = _load_state()
+  local sorted_keys = _sorted_keys(M.slots)
+
+  if #sorted_keys == 0 then
+    vim.notify("Hooks: No slots defined", vim.log.levels.WARN)
+    return
+  end
+
+  local current_file = vim.fn.expand("%:p")
+  local current_index = nil
+
+  for i, key in ipairs(sorted_keys) do
+    if M.slots[key] == current_file then
+      current_index = i
+      break
+    end
+  end
+
+  local prev_index
+  if current_index then
+    prev_index = ((current_index - 2 + #sorted_keys) % #sorted_keys) + 1
+  else
+    prev_index = 1
+  end
+
+  M.jump(sorted_keys[prev_index])
+end
+
 -- ============================================
 -- Action: menu
 -- ============================================
