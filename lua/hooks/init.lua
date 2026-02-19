@@ -45,15 +45,15 @@ local function _load_state()
   return vim.json.decode(content)
 end
 
----Return a sorted array of keys
----@param tbl table<string|integer, string>
----@return (string|integer)[]
+---Return a sorted array of numeric keys
+---@param tbl table<string, string>
+---@return integer[]
 local function _sorted_keys(tbl)
-  local keys = vim.tbl_keys(tbl)
-  table.sort(keys, function(a, b)
-    return string.byte(a) < string.byte(b)
-  end)
-
+  local keys = {}
+  for k, _ in pairs(tbl) do
+    table.insert(keys, tonumber(k))
+  end
+  table.sort(keys)
   return keys
 end
 
@@ -98,7 +98,7 @@ local function _validate_lines(lines)
         is_valid_fp = false
       end
 
-      if not (key and key:match("^[0-9a-z]$")) then
+      if not (key and key:match("^[0-9]+$")) then
         is_valid_key = false
       end
     end
@@ -116,24 +116,7 @@ end
 -- Action: Add
 -- ============================================
 
----Add current file to Hooks
----@param key string
-function M.add(key)
-  M.slots = _load_state()
-  local current_file = vim.fn.expand("%:p")
-
-  if current_file == "" or vim.bo.buftype ~= "" then
-    return
-  end
-
-  M.slots[key] = current_file
-
-  _save_state()
-
-  vim.notify("Hooks: " .. current_file .. " added to " .. "[" .. key .. "]", vim.log.levels.INFO)
-end
-
----Add current file at the start (lowest available number)
+---Insert current file at the start (position 1), pushing all others up
 function M.add_at_start()
   M.slots = _load_state()
   local current_file = vim.fn.expand("%:p")
@@ -142,30 +125,21 @@ function M.add_at_start()
     return
   end
 
-  -- Find the lowest numerical key
-  local min_key = nil
-  for key, _ in pairs(M.slots) do
-    local num = tonumber(key)
-    if num then
-      if not min_key or num < min_key then
-        min_key = num
-      end
-    end
+  -- Shift all existing hooks up by 1
+  local sorted_keys = _sorted_keys(M.slots)
+  for i = #sorted_keys, 1, -1 do
+    local old_key = sorted_keys[i]
+    M.slots[tostring(old_key + 1)] = M.slots[tostring(old_key)]
   end
-
-  -- Use 1 if no hooks exist, otherwise use min-1
-  local new_key = min_key and (min_key - 1) or 1
-  if new_key < 1 then
-    new_key = 1
-  end
-
-  M.slots[tostring(new_key)] = current_file
+  
+  -- Insert at position 1
+  M.slots["1"] = current_file
   _save_state()
 
-  vim.notify("Hooks: " .. current_file .. " added at start [" .. new_key .. "]", vim.log.levels.INFO)
+  vim.notify("Hooks: " .. current_file .. " inserted at [1]", vim.log.levels.INFO)
 end
 
----Add current file at the end (highest available number + 1)
+---Add current file at the end (highest number + 1)
 function M.add_at_end()
   M.slots = _load_state()
   local current_file = vim.fn.expand("%:p")
@@ -174,50 +148,52 @@ function M.add_at_end()
     return
   end
 
-  -- Find the highest numerical key
-  local max_key = nil
-  for key, _ in pairs(M.slots) do
-    local num = tonumber(key)
-    if num then
-      if not max_key or num > max_key then
-        max_key = num
-      end
-    end
-  end
-
-  -- Use 1 if no hooks exist, otherwise use max+1
-  local new_key = max_key and (max_key + 1) or 1
+  local sorted_keys = _sorted_keys(M.slots)
+  local new_key = #sorted_keys > 0 and sorted_keys[#sorted_keys] + 1 or 1
 
   M.slots[tostring(new_key)] = current_file
   _save_state()
 
-  vim.notify("Hooks: " .. current_file .. " added at end [" .. new_key .. "]", vim.log.levels.INFO)
+  vim.notify("Hooks: " .. current_file .. " added at [" .. new_key .. "]", vim.log.levels.INFO)
 end
 
----Renumber numeric keys to be contiguous after removal
+---Insert current file at specific position, pushing others up
+---@param position integer
+function M.insert(position)
+  M.slots = _load_state()
+  local current_file = vim.fn.expand("%:p")
+
+  if current_file == "" or vim.bo.buftype ~= "" then
+    return
+  end
+
+  position = math.max(1, position)
+  local sorted_keys = _sorted_keys(M.slots)
+  
+  -- If position is beyond end, just append
+  if position > #sorted_keys + 1 then
+    M.slots[tostring(position)] = current_file
+  else
+    -- Shift hooks at position and beyond up by 1
+    for i = #sorted_keys, position, -1 do
+      local old_key = sorted_keys[i]
+      M.slots[tostring(old_key + 1)] = M.slots[tostring(old_key)]
+    end
+    M.slots[tostring(position)] = current_file
+  end
+  
+  _save_state()
+  vim.notify("Hooks: " .. current_file .. " inserted at [" .. position .. "]", vim.log.levels.INFO)
+end
+
+---Renumber keys to be contiguous after removal
 ---@param removed_key integer
 local function _renumber_after_removal(removed_key)
   local new_slots = {}
-  
-  -- First, copy all non-numeric keys as-is
-  for k, v in pairs(M.slots) do
-    if not tonumber(k) then
-      new_slots[k] = v
-    end
-  end
-  
-  -- Then renumber numeric keys
-  local numeric_keys = {}
-  for k, _ in pairs(M.slots) do
-    local num = tonumber(k)
-    if num then
-      table.insert(numeric_keys, num)
-    end
-  end
-  table.sort(numeric_keys)
+  local sorted_keys = _sorted_keys(M.slots)
   
   local new_idx = 1
-  for _, old_num in ipairs(numeric_keys) do
+  for _, old_num in ipairs(sorted_keys) do
     new_slots[tostring(new_idx)] = M.slots[tostring(old_num)]
     new_idx = new_idx + 1
   end
@@ -226,24 +202,19 @@ local function _renumber_after_removal(removed_key)
 end
 
 ---Remove a hook by key and renumber to maintain contiguous indices
----@param key string|integer
+---@param key integer
 function M.remove(key)
   M.slots = _load_state()
+  local key_str = tostring(key)
 
-  if not M.slots[key] then
+  if not M.slots[key_str] then
     vim.notify("Hooks: No hook at [" .. key .. "]", vim.log.levels.WARN)
     return
   end
 
-  local filepath = M.slots[key]
-  local removed_num = tonumber(key)
-  M.slots[key] = nil
-  
-  -- Renumber if it was a numeric key
-  if removed_num then
-    _renumber_after_removal(removed_num)
-  end
-  
+  local filepath = M.slots[key_str]
+  M.slots[key_str] = nil
+  _renumber_after_removal(key)
   _save_state()
 
   vim.notify("Hooks: Removed [" .. key .. "] " .. filepath, vim.log.levels.INFO)
@@ -268,14 +239,8 @@ function M.remove_current()
     return
   end
 
-  local removed_num = tonumber(found_key)
   M.slots[found_key] = nil
-  
-  -- Renumber if it was a numeric key
-  if removed_num then
-    _renumber_after_removal(removed_num)
-  end
-  
+  _renumber_after_removal(tonumber(found_key))
   _save_state()
 
   vim.notify("Hooks: Removed [" .. found_key .. "]", vim.log.levels.INFO)
@@ -286,15 +251,19 @@ end
 -- ============================================
 
 ---Jump to the file registered to the specific key
----@param key string
+---@param key integer
 function M.jump(key)
   M.slots = _load_state()
-  local filepath = M.slots[key]
+  local filepath = M.slots[tostring(key)]
 
-  vim.cmd.edit(filepath)
+  if filepath then
+    vim.cmd.edit(filepath)
+  else
+    vim.notify("Hooks: No hook at [" .. key .. "]", vim.log.levels.WARN)
+  end
 end
 
----Jump to the next slot in sorted order
+---Jump to the next slot (circular)
 ---If current file is not in slots, jumps to the first slot
 function M.next()
   M.slots = _load_state()
@@ -308,8 +277,8 @@ function M.next()
   local current_file = vim.fn.expand("%:p")
   local current_index = nil
 
-  for i, key in ipairs(sorted_keys) do
-    if M.slots[key] == current_file then
+  for i, key_num in ipairs(sorted_keys) do
+    if M.slots[tostring(key_num)] == current_file then
       current_index = i
       break
     end
@@ -325,7 +294,7 @@ function M.next()
   M.jump(sorted_keys[next_index])
 end
 
----Jump to the previous slot in sorted order
+---Jump to the previous slot (circular)
 ---If current file is not in slots, jumps to the first slot
 function M.prev()
   M.slots = _load_state()
@@ -339,8 +308,8 @@ function M.prev()
   local current_file = vim.fn.expand("%:p")
   local current_index = nil
 
-  for i, key in ipairs(sorted_keys) do
-    if M.slots[key] == current_file then
+  for i, key_num in ipairs(sorted_keys) do
+    if M.slots[tostring(key_num)] == current_file then
       current_index = i
       break
     end
@@ -360,29 +329,6 @@ end
 -- Action: Move
 -- ============================================
 
----Move a hook from one key to another (swap if target exists)
----@param from_key string|integer
----@param to_key string|integer
-function M.move(from_key, to_key)
-  M.slots = _load_state()
-
-  local from_val = M.slots[from_key]
-  local to_val = M.slots[to_key]
-
-  if not from_val then
-    vim.notify("Hooks: No hook at [" .. from_key .. "]", vim.log.levels.WARN)
-    return
-  end
-
-  -- Swap them
-  M.slots[from_key] = to_val
-  M.slots[to_key] = from_val
-
-  _save_state()
-
-  vim.notify(string.format("Hooks: Moved [%s] <-> [%s]", from_key, to_key), vim.log.levels.INFO)
-end
-
 ---Move current file's hook one position to the left (swap with previous)
 function M.move_left()
   local current_file = vim.fn.expand("%:p")
@@ -392,9 +338,9 @@ function M.move_left()
   -- Find current file's key
   local current_key = nil
   local current_idx = nil
-  for i, key in ipairs(sorted_keys) do
-    if M.slots[key] == current_file then
-      current_key = key
+  for i, key_num in ipairs(sorted_keys) do
+    if M.slots[tostring(key_num)] == current_file then
+      current_key = key_num
       current_idx = i
       break
     end
@@ -412,7 +358,13 @@ function M.move_left()
 
   -- Swap with previous
   local prev_key = sorted_keys[current_idx - 1]
-  M.move(current_key, prev_key)
+  local from_val = M.slots[tostring(current_key)]
+  local to_val = M.slots[tostring(prev_key)]
+  M.slots[tostring(current_key)] = to_val
+  M.slots[tostring(prev_key)] = from_val
+  _save_state()
+
+  vim.notify(string.format("Hooks: Moved [%d] <-> [%d]", current_key, prev_key), vim.log.levels.INFO)
 end
 
 ---Move current file's hook one position to the right (swap with next)
@@ -424,9 +376,9 @@ function M.move_right()
   -- Find current file's key
   local current_key = nil
   local current_idx = nil
-  for i, key in ipairs(sorted_keys) do
-    if M.slots[key] == current_file then
-      current_key = key
+  for i, key_num in ipairs(sorted_keys) do
+    if M.slots[tostring(key_num)] == current_file then
+      current_key = key_num
       current_idx = i
       break
     end
@@ -444,7 +396,13 @@ function M.move_right()
 
   -- Swap with next
   local next_key = sorted_keys[current_idx + 1]
-  M.move(current_key, next_key)
+  local from_val = M.slots[tostring(current_key)]
+  local to_val = M.slots[tostring(next_key)]
+  M.slots[tostring(current_key)] = to_val
+  M.slots[tostring(next_key)] = from_val
+  _save_state()
+
+  vim.notify(string.format("Hooks: Moved [%d] <-> [%d]", current_key, next_key), vim.log.levels.INFO)
 end
 
 -- ============================================
