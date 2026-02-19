@@ -133,6 +133,67 @@ function M.add(key)
   vim.notify("Hooks: " .. current_file .. " added to " .. "[" .. key .. "]", vim.log.levels.INFO)
 end
 
+---Add current file at the start (lowest available number)
+function M.add_at_start()
+  M.slots = _load_state()
+  local current_file = vim.fn.expand("%:p")
+
+  if current_file == "" or vim.bo.buftype ~= "" then
+    return
+  end
+
+  -- Find the lowest numerical key
+  local min_key = nil
+  for key, _ in pairs(M.slots) do
+    local num = tonumber(key)
+    if num then
+      if not min_key or num < min_key then
+        min_key = num
+      end
+    end
+  end
+
+  -- Use 1 if no hooks exist, otherwise use min-1
+  local new_key = min_key and (min_key - 1) or 1
+  if new_key < 1 then
+    new_key = 1
+  end
+
+  M.slots[tostring(new_key)] = current_file
+  _save_state()
+
+  vim.notify("Hooks: " .. current_file .. " added at start [" .. new_key .. "]", vim.log.levels.INFO)
+end
+
+---Add current file at the end (highest available number + 1)
+function M.add_at_end()
+  M.slots = _load_state()
+  local current_file = vim.fn.expand("%:p")
+
+  if current_file == "" or vim.bo.buftype ~= "" then
+    return
+  end
+
+  -- Find the highest numerical key
+  local max_key = nil
+  for key, _ in pairs(M.slots) do
+    local num = tonumber(key)
+    if num then
+      if not max_key or num > max_key then
+        max_key = num
+      end
+    end
+  end
+
+  -- Use 1 if no hooks exist, otherwise use max+1
+  local new_key = max_key and (max_key + 1) or 1
+
+  M.slots[tostring(new_key)] = current_file
+  _save_state()
+
+  vim.notify("Hooks: " .. current_file .. " added at end [" .. new_key .. "]", vim.log.levels.INFO)
+end
+
 -- ============================================
 -- Action: Jump
 -- ============================================
