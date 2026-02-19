@@ -495,15 +495,20 @@ function M.menu()
       if is_all_valid then
         M.slots = {}
 
+        -- Extract filepaths and renumber contiguously
+        local filepaths = {}
         for _, line in ipairs(new_lines) do
           local sep_start_index, _ = string.find(line, "=")
           local filepath = vim.fn.trim(string.sub(line, sep_start_index + 1))
-          local key = string.match(line, "^%[(.-)%]")
-
-          M.slots[key] = filepath
-
-          _save_state()
+          table.insert(filepaths, filepath)
         end
+
+        -- Assign contiguous keys starting from 1
+        for i, filepath in ipairs(filepaths) do
+          M.slots[tostring(i)] = filepath
+        end
+
+        _save_state()
 
         vim.api.nvim_set_option_value("modified", false, { buf = menu_buf })
         vim.notify("Hooks: State saved!", vim.log.levels.INFO)
