@@ -27,6 +27,7 @@ local function _save_state()
   local path = _get_path()
 
   vim.fn.writefile({ vim.json.encode(M.slots) }, path)
+  vim.api.nvim_exec_autocmds("User", { pattern = "HooksChanged" })
 end
 
 ---Load slots depending on context.
