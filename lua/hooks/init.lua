@@ -58,13 +58,13 @@ local function _sorted_keys(tbl)
 end
 
 ---Return an array of formatted lines for Menu's buffer
----@param slots table<string|integer, string>
----@param sorted_keys (string|integer)[]
+---@param slots table<string, string>
+---@param sorted_keys integer[]
 ---@return string[]
 local function _get_formatted_lines(slots, sorted_keys)
   local formatted_lines = {}
   for _, k in ipairs(sorted_keys) do
-    table.insert(formatted_lines, string.format("[%s] = %s", k, slots[k]))
+    table.insert(formatted_lines, string.format("[%d] = %s", k, slots[tostring(k)]))
   end
 
   return formatted_lines
@@ -116,6 +116,18 @@ end
 -- Action: Add
 -- ============================================
 
+---Check if file already exists in slots
+---@param filepath string
+---@return integer|nil
+local function _find_key(filepath)
+  for key, fp in pairs(M.slots) do
+    if fp == filepath then
+      return tonumber(key)
+    end
+  end
+  return nil
+end
+
 ---Insert current file at the start (position 1), pushing all others up
 function M.add_at_start()
   M.slots = _load_state()
@@ -125,11 +137,18 @@ function M.add_at_start()
     return
   end
 
+  -- Check if already exists
+  local existing_key = _find_key(current_file)
+  if existing_key then
+    vim.notify("Hooks: File already exists at [" .. existing_key .. "]", vim.log.levels.WARN)
+    return
+  end
+
   -- Shift all existing hooks up by 1
   local sorted_keys = _sorted_keys(M.slots)
   for i = #sorted_keys, 1, -1 do
-    local old_key = sorted_keys[i]
-    M.slots[tostring(old_key + 1)] = M.slots[tostring(old_key)]
+    local old_key_num = sorted_keys[i]
+    M.slots[tostring(old_key_num + 1)] = M.slots[tostring(old_key_num)]
   end
   
   -- Insert at position 1
@@ -148,6 +167,13 @@ function M.add_at_end()
     return
   end
 
+  -- Check if already exists
+  local existing_key = _find_key(current_file)
+  if existing_key then
+    vim.notify("Hooks: File already exists at [" .. existing_key .. "]", vim.log.levels.WARN)
+    return
+  end
+  
   local sorted_keys = _sorted_keys(M.slots)
   local new_key = #sorted_keys > 0 and sorted_keys[#sorted_keys] + 1 or 1
 
@@ -167,6 +193,13 @@ function M.insert(position)
     return
   end
 
+  -- Check if already exists
+  local existing_key = _find_key(current_file)
+  if existing_key then
+    vim.notify("Hooks: File already exists at [" .. existing_key .. "]", vim.log.levels.WARN)
+    return
+  end
+
   position = math.max(1, position)
   local sorted_keys = _sorted_keys(M.slots)
   
@@ -176,8 +209,8 @@ function M.insert(position)
   else
     -- Shift hooks at position and beyond up by 1
     for i = #sorted_keys, position, -1 do
-      local old_key = sorted_keys[i]
-      M.slots[tostring(old_key + 1)] = M.slots[tostring(old_key)]
+      local old_key_num = sorted_keys[i]
+      M.slots[tostring(old_key_num + 1)] = M.slots[tostring(old_key_num)]
     end
     M.slots[tostring(position)] = current_file
   end
