@@ -209,6 +209,97 @@ function M.prev()
 end
 
 -- ============================================
+-- Action: Move
+-- ============================================
+
+---Move a hook from one key to another (swap if target exists)
+---@param from_key string|integer
+---@param to_key string|integer
+function M.move(from_key, to_key)
+  M.slots = _load_state()
+
+  local from_val = M.slots[from_key]
+  local to_val = M.slots[to_key]
+
+  if not from_val then
+    vim.notify("Hooks: No hook at [" .. from_key .. "]", vim.log.levels.WARN)
+    return
+  end
+
+  -- Swap them
+  M.slots[from_key] = to_val
+  M.slots[to_key] = from_val
+
+  _save_state()
+
+  vim.notify(string.format("Hooks: Moved [%s] <-> [%s]", from_key, to_key), vim.log.levels.INFO)
+end
+
+---Move current file's hook one position to the left (swap with previous)
+function M.move_left()
+  local current_file = vim.fn.expand("%:p")
+  M.slots = _load_state()
+  local sorted_keys = _sorted_keys(M.slots)
+
+  -- Find current file's key
+  local current_key = nil
+  local current_idx = nil
+  for i, key in ipairs(sorted_keys) do
+    if M.slots[key] == current_file then
+      current_key = key
+      current_idx = i
+      break
+    end
+  end
+
+  if not current_key then
+    vim.notify("Hooks: Current file is not a hook", vim.log.levels.WARN)
+    return
+  end
+
+  if current_idx == 1 then
+    vim.notify("Hooks: Already at first position", vim.log.levels.WARN)
+    return
+  end
+
+  -- Swap with previous
+  local prev_key = sorted_keys[current_idx - 1]
+  M.move(current_key, prev_key)
+end
+
+---Move current file's hook one position to the right (swap with next)
+function M.move_right()
+  local current_file = vim.fn.expand("%:p")
+  M.slots = _load_state()
+  local sorted_keys = _sorted_keys(M.slots)
+
+  -- Find current file's key
+  local current_key = nil
+  local current_idx = nil
+  for i, key in ipairs(sorted_keys) do
+    if M.slots[key] == current_file then
+      current_key = key
+      current_idx = i
+      break
+    end
+  end
+
+  if not current_key then
+    vim.notify("Hooks: Current file is not a hook", vim.log.levels.WARN)
+    return
+  end
+
+  if current_idx == #sorted_keys then
+    vim.notify("Hooks: Already at last position", vim.log.levels.WARN)
+    return
+  end
+
+  -- Swap with next
+  local next_key = sorted_keys[current_idx + 1]
+  M.move(current_key, next_key)
+end
+
+-- ============================================
 -- Action: menu
 -- ============================================
 
